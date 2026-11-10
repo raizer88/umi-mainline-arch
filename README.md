@@ -30,7 +30,7 @@ partition — the kernel is always loaded into RAM with `fastboot boot`.
 | Subsystem | State | Notes |
 |---|---|---|
 | Kernel boot | **works** | 6.12.x, ~12 s to a serial root shell |
-| Display | **works** | 1080×2340@60, DSC v1.1, 4-lane command mode |
+| Display | **works, blank/resume glitch** | 1080×2340@60, DSC v1.1, 4-lane command mode; `dsi_err_worker status=5` on blank, off/on recovers, see `docs/DISPLAY-RESUME.md` |
 | Framebuffer console | **works** | `msmdrmfb`, fbcon on card1 |
 | Backlight | **works** | 1..2047 via `/sys/class/backlight`, usable range starts ~1000 |
 | Power off / on | **works** | sleep-in + reset + full 652-byte init sequence |

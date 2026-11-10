@@ -9,6 +9,7 @@ The field-report documents added by this branch are in **English**:
 | [ARCH-INSTALL.md](ARCH-INSTALL.md) | WSL build, rootfs, Plasma, modules, flashing, resize, SSH |
 | [WIFI-WORKAROUND.md](WIFI-WORKAROUND.md) | QCA6390 ath11k scan-abort workaround (pinned BSSID/freq + 90 s timer) |
 | [UFS-LPM.md](UFS-LPM.md) | UFS hibern8/link-dead panic and the `qcom,disable-lpm` fix |
+| [DISPLAY-RESUME.md](DISPLAY-RESUME.md) | blank/resume DSI timeout+FIFO glitch, off/on recovery, workaround |
 | [RECOVERY.md](RECOVERY.md) | backups, TWRP, restoring LineageOS, rescue images |
 
 Deploy templates live in [`../deploy/`](../deploy/); the kernel patch series is

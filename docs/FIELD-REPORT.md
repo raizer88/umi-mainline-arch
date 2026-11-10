@@ -42,6 +42,7 @@ from this unit's downstream DTB with `tools/gen-panel-dts.py`.
 | USB CDC-ACM console | **works** | `ttyGS0`/CDC-ACM, 115200; `COMx` on Windows |
 | USB RNDIS | **works** | `usb0` = 192.168.42.1/24, DHCP server for the host |
 | UFS / Arch rootfs | **works** | 106 GiB ext4 on `/dev/sda34` |
+| Display blank/resume | **glitch** | DSI timeout+FIFO error, panel noise; off/on recovers; disable auto blank/lock, see [DISPLAY-RESUME.md](DISPLAY-RESUME.md) |
 | Arch Linux ARM | **works** | base Arch, `pacman`, `systemd` |
 | Plasma Mobile | **works** | Plasma Mobile 6.8.2, KWin Wayland, tty1 autologin |
 | SSH | **works** | root key auth over USB and over WiFi |
@@ -147,6 +148,10 @@ the authoritative checks.
 - WiFi is deliberately delayed by 90 s. Reducing it is possible only after the
   ath11k firmware/scan-abort issue is understood; do not enable
   `wpa_supplicant@wlan0` or `dhcpcd@wlan0` at boot.
+- The display can corrupt after blank/resume with `dsi_err_worker: status=5`
+  (DSI timeout+FIFO); the host does not reset the link. Disable automatic screen
+  blanking/locking or toggle the screen off/on. See
+  [DISPLAY-RESUME.md](DISPLAY-RESUME.md).
 - The pinned BSSID/frequency is a workaround, not a general fix. If the AP
   changes channel or BSSID, update `deploy/wpa_supplicant-wlan0.conf`.
 - The WiFi icon in Plasma may show "off" because `plasma-nm` expects
