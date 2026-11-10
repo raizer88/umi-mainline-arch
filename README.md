@@ -1,5 +1,13 @@
 # umi-mainline
 
+> **Field report branch (November 2026).** This standalone copy preserves the
+> upstream history and adds a complete **Arch Linux ARM + Plasma Mobile**
+> installation report for a Mi 10 with a **Samsung** panel, ST FTS touch and
+> QCA6390 WiFi. It documents what works, what does not, the UFS LPM fix, the
+> ath11k WiFi workaround, and the recovery procedure. Start with
+> [`docs/FIELD-REPORT.md`](docs/FIELD-REPORT.md). No credentials, BSSIDs, device
+> serials, partition backups or rootfs images are included.
+
 Running a mainline Linux kernel on the **Xiaomi Mi 10** (SM8250 / "kona",
 device codename `umi`, model M2001J2C).
 
@@ -32,10 +40,10 @@ partition — the kernel is always loaded into RAM with `fastboot boot`.
 | pstore / ramoops | **works** | last crash survives a reboot |
 | CPU / clock / regulator | **partial** | boots with `clk_ignore_unused`, `pd_ignore_unused`, `regulator_ignore_unused` |
 | GPU (Adreno 650) | **works** | `gpu-initialized: 1`, devfreq 305–587 MHz; `a650_*` firmware must be in the initramfs, see `docs/GPU.md` |
-| Wi-Fi (QCA6390) | **works** | `sm8250-xiaomi-umi-wifi.dts` + `ath11k`, MAC pinned `00:03:7f:12:a4:a4`, see `docs/WIFI.md` §14 |
+| Wi-Fi (QCA6390) | **works with workaround** | `sm8250-xiaomi-umi-wifi.dts` + `ath11k`; this branch uses pinned-BSSID `wpa_supplicant` started 90 s after boot, see `docs/WIFI-WORKAROUND.md` |
 | Vulkan / OpenGL | **works** | turnip (`vulkan-freedreno`) + freedreno: Vulkan 1.3.354, GL 4.6 / GLES 3.2 (`FD650`), see `docs/GPU.md` §5.1 |
-| KDE Plasma Mobile | **works** | 6.8.1 on Wayland (kwin_wayland, scale 2.5), boot straight into it; see `docs/KDE.md` |
-| Rootfs on UFS | **works** | 223 GiB ext4 on userdata (`/dev/sda34`) |
+| KDE Plasma Mobile | **works** | 6.8.2 on Wayland (kwin_wayland), boot straight into it; see `docs/FIELD-REPORT.md` |
+| Rootfs on UFS | **works** | 106 GiB ext4 on userdata (`/dev/sda34`) on the field-report unit |
 | 90 Hz mode | no | second timing exists in the panel node, not enabled |
 
 ## Hardware
@@ -43,6 +51,11 @@ partition — the kernel is always loaded into RAM with `fastboot boot`.
 * SoC: Qualcomm SM8250 (Snapdragon 865), 8 cores
 * Display: 1080×2340 AMOLED, command mode, DSC 8bpc/8bpp, slice 540×12
 * Panel variant on the test device: `j2_mp_42_02_0b__dsc_cmd` (**CSOT / 华星光电**, vendor code `42`)
+
+> The unit used for this field report has the **Samsung** variant
+> `j2_p2_1_38_0c_0a`; the checked-in `dts/xiaomi-umi-panels.dtsi` is generated
+> for that panel. This is why `tools/gen-panel-dts.py` exists: the panel data is
+> a hardware variant, not a constant.
 * Touch: **STMicroelectronics FTS** at `i2c@a94000` (QUPV3 wrap1 SE5), address
   `0x49`, reset GPIO38, IRQ GPIO39, level low
 * Power: pm8150 / pm8150l / pm8150b / pm8009

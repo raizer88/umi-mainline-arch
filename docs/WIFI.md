@@ -1,5 +1,12 @@
 # QCA6390 WiFi 调查记录（umi）
 
+> **Field-report note (November 2026):** this upstream document predates the
+> Samsung-panel/UFS/WiFi field report. On that unit `iwd`/`iwctl` and any early
+> `wpa_supplicant` startup trigger an `ath11k` scan-abort hang. Use the pinned
+> BSSID/frequency `wpa_supplicant` + 90 s timer described in
+> [`WIFI-WORKAROUND.md`](WIFI-WORKAROUND.md). Do not follow the `iwd` section
+> here as-is on that unit.
+>
 > 目标：让 mi10 的 WiFi 在主线内核下工作。
 >
 > 结论（2026-10-24）：**PCIe 控制器已经能起来，但 QCA6390 上不了电** ——

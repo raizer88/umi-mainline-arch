@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: CC0-1.0
+[Unit]
+Description=Start WiFi 90 seconds after boot on umi (QCA6390 workaround)
+
+[Timer]
+# wlan0/ath11k probes around 40 s. 90 s leaves a wide margin; 30 s hung this unit.
+OnBootSec=90s
+Unit=umi-wpa-late.service
+
+[Install]
+WantedBy=timers.target

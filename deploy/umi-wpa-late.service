@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: CC0-1.0
+[Unit]
+Description=Late WiFi connection on umi (QCA6390 ath11k workaround)
+Documentation=file:/usr/share/doc/umi-mainline/WIFI-WORKAROUND.md
+
+[Service]
+Type=oneshot
+# Start wpa_supplicant only after the interface/firmware is ready.
+ExecStart=/usr/bin/systemctl start wpa_supplicant@wlan0.service
+ExecStart=/bin/sleep 10
+ExecStart=/usr/bin/systemctl start dhcpcd@wlan0.service
+RemainAfterExit=yes

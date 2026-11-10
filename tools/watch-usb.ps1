@@ -15,14 +15,14 @@
 param(
     [int]$TimeoutSec = 300,
     [string]$Vid = '1D6B',
-    [string]$Pid = '0104',
+    [string]$GadgetPid = '0105',
     [string]$Log = '',
     [int]$Baud = 115200
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
 $start = Get-Date
-$pattern = "VID_$Vid&PID_$Pid"
+$pattern = "VID_$Vid&PID_$GadgetPid"
 
 if ($Log -eq '') {
     $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -71,7 +71,7 @@ while (((Get-Date) - $start).TotalSeconds -lt $TimeoutSec) {
     $devs = Get-GadgetDevices
     if ($devs.Count -gt 0 -and -not $seen) {
         $seen = $true
-        Say "*** 检测到 USB gadget $Vid`:$Pid —— 内核已经跑到 initramfs/用户态了！ ***"
+        Say "*** 检测到 USB gadget $Vid`:$GadgetPid —— 内核已经跑到 initramfs/用户态了！ ***"
         foreach ($d in $devs) { Say ("    " + $d.FriendlyName) }
     }
     elseif ($devs.Count -eq 0 -and $seen) {

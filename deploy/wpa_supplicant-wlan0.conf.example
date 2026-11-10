@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: CC0-1.0
+#
+# Template for the QCA6390 workaround on the Xiaomi Mi 10 (umi).
+# Copy to /etc/wpa_supplicant/wpa_supplicant-wlan0.conf and fill the placeholders.
+# Keep the result root-only (0600). Never commit the filled file.
+#
+# BSSID/frequency: get them with
+#     ip link set wlan0 up
+#     iw dev wlan0 scan | grep -B14 'SSID: <SSID>'
+# Pick the BSSID and the "freq:" value of the AP you want to use.
+#
+# WPA3-SAE (example):
+ctrl_interface=/run/wpa_supplicant
+update_config=1
+ap_scan=1
+p2p_disabled=1
+
+network={
+    ssid="<SSID>"
+    bssid=<AA:BB:CC:DD:EE:FF>
+    scan_freq=<FREQ_MHZ>
+    psk="<PASSPHRASE>"
+    key_mgmt=SAE
+    ieee80211w=2
+    sae_pwe=2
+    proto=RSN
+    pairwise=CCMP
+    group=CCMP
+}
+
+# WPA2-PSK alternative: replace the block above with
+#
+# network={
+#     ssid="<SSID>"
+#     bssid=<AA:BB:CC:DD:EE:FF>
+#     scan_freq=<FREQ_MHZ>
+#     psk="<PASSPHRASE>"
+#     key_mgmt=WPA-PSK
+#     proto=RSN
+#     pairwise=CCMP
+#     group=CCMP
+# }
