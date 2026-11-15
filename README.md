@@ -39,7 +39,7 @@ partition — the kernel is always loaded into RAM with `fastboot boot`.
 | USB mass storage | **works** | initramfs exports its report directory as a disk |
 | pstore / ramoops | **works** | last crash survives a reboot |
 | CPU / clock / regulator | **partial** | boots with `clk_ignore_unused`, `pd_ignore_unused`, `regulator_ignore_unused` |
-| CPU frequency scaling | **missing** | no `/sys/.../cpufreq`; `cpufreq-dt` deferred, QCOM CPR/HW cpufreq disabled; fixed bootloader clock, see `docs/CPU-FREQ.md` |
+| CPU frequency scaling | **works with opt-in kernel** | `qcom-cpufreq-hw` + `QCOM_CPR`; 1.8048/2.4192/2.8416 GHz; `schedutil` reaches max under load, see `docs/CPU-FREQ.md` |
 | GPU (Adreno 650) | **works** | `gpu-initialized: 1`, devfreq 305–587 MHz; `a650_*` firmware must be in the initramfs, see `docs/GPU.md` |
 | Wi-Fi (QCA6390) | **works with workaround** | `sm8250-xiaomi-umi-wifi.dts` + `ath11k`; this branch uses pinned-BSSID `wpa_supplicant` started 90 s after boot, see `docs/WIFI-WORKAROUND.md` |
 | Vulkan / OpenGL | **works** | turnip (`vulkan-freedreno`) + freedreno: Vulkan 1.3.354, GL 4.6 / GLES 3.2 (`FD650`), see `docs/GPU.md` §5.1 |

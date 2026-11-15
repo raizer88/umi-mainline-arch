@@ -285,6 +285,14 @@ if [ "$badfrag" = 1 ]; then
 	exit 2
 fi
 cat "$FRAG" >> "$OUT/.config"
+# Optional experimental fragment (e.g. config/umi-cpufreq.config).
+if [ -n "${EXTRA_CONFIG:-}" ]; then
+	case "$EXTRA_CONFIG" in
+		/*) ;;
+		*) EXTRA_CONFIG="$WS/$EXTRA_CONFIG" ;;
+	esac
+	cat "$EXTRA_CONFIG" >> "$OUT/.config"
+fi
 # TOUCH=stfts：换掉 umi.config 里的主线触摸选项（后写的覆盖前面的）
 if [ "${TOUCH_SEL:-fts521}" = stfts ]; then
 	{
@@ -346,10 +354,16 @@ check_y QCOM_GPI_DMA
 # 「必须关掉」的（y 或 m 都算失败）
 # 注意不含 CPU_IDLE：drivers/acpi/Kconfig:269 的 ACPI_PROCESSOR 会 select 它，关不掉。
 # 关掉 ARM_PSCI_CPUIDLE 就等于关掉了 arm64/DT 下唯一会注册的 cpuidle 驱动。
-for s in FB_SIMPLE RANDOMIZE_BASE WERROR \
-         QCOM_CPR ARM_QCOM_CPUFREQ_HW; do
+for s in FB_SIMPLE RANDOMIZE_BASE WERROR; do
 	check_n "$s"
 done
+if [ "${ALLOW_CPUFREQ:-0}" = 1 ]; then
+	echo "   WARN QCOM_CPR/ARM_QCOM_CPUFREQ_HW enabled (experimental CPU scaling)"
+else
+	for s in QCOM_CPR ARM_QCOM_CPUFREQ_HW; do
+		check_n "$s"
+	done
+fi
 # SMMU bypass：6.12 上还能在编译期关掉，7.x 起它变成 default y 且只在
 # CONFIG_EXPERT 下可见，写 "# ... is not set" 会被 olddefconfig 改回去。
 # 真正生效的开关是 cmdline 里的 arm-smmu.disable_bypass=0，所以这里按它判断。
