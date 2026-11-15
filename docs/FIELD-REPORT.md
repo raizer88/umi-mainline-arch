@@ -42,6 +42,7 @@ from this unit's downstream DTB with `tools/gen-panel-dts.py`.
 | USB CDC-ACM console | **works** | `ttyGS0`/CDC-ACM, 115200; `COMx` on Windows |
 | USB RNDIS | **works** | `usb0` = 192.168.42.1/24, DHCP server for the host |
 | UFS / Arch rootfs | **works** | 106 GiB ext4 on `/dev/sda34` |
+| CPU frequency scaling | **missing** | no cpufreq; `cpufreq-dt` deferred, QCOM CPR/HW cpufreq disabled; fixed bootloader clock, all 8 cores still used, see [CPU-FREQ.md](CPU-FREQ.md) |
 | Display blank/resume | **glitch** | DSI timeout+FIFO error, panel noise; off/on recovers; disable auto blank/lock, see [DISPLAY-RESUME.md](DISPLAY-RESUME.md) |
 | Arch Linux ARM | **works** | base Arch, `pacman`, `systemd` |
 | Plasma Mobile | **works** | Plasma Mobile 6.8.2, KWin Wayland, tty1 autologin |
