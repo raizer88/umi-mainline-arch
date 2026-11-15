@@ -42,3 +42,28 @@ path in this branch.
 
 The passphrase lives only in `/etc/wpa_supplicant/wpa_supplicant-wlan0.conf`
 (0600 root). Do not commit that file.
+
+## SSH keys and host aliases
+
+The phone uses public-key authentication for both `root` and `umi`. The
+effective `/etc/ssh/sshd_config.d/10-umi.conf` is:
+
+```
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+```
+
+The public key is the same for both accounts; the private key stays on the
+Windows host at `C:/Users/panza/.ssh/umi_ed25519`. Test:
+
+```sh
+ssh -i C:/Users/panza/.ssh/umi_ed25519 root@192.168.1.253
+ssh -i C:/Users/panza/.ssh/umi_ed25519 umi@192.168.1.253
+```
+
+`deploy/ssh-config.example` contains ready-made `Host` blocks for
+`umi`/`umi-usb` (root) and `umi-user`/`umi-user-usb` (`umi`). Append it to
+`C:\Users\panza\.ssh\config` (that directory is outside the agent's write
+scope). The WiFi address is the reliable path; `usb0` is `192.168.42.1`.

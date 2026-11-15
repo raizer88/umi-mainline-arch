@@ -1,0 +1,35 @@
+# Append this to C:\Users\panza\.ssh\config (outside the workspace write scope).
+# Requires the private key C:/Users/panza/.ssh/umi_ed25519.
+# WiFi is the reliable path; usb0 is 192.168.42.1.
+
+Host umi
+    HostName 192.168.1.253
+    User root
+    IdentityFile C:/Users/panza/.ssh/umi_ed25519
+    IdentitiesOnly yes
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 30
+
+Host umi-usb
+    HostName 192.168.42.1
+    User root
+    IdentityFile C:/Users/panza/.ssh/umi_ed25519
+    IdentitiesOnly yes
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 30
+
+Host umi-user
+    HostName 192.168.1.253
+    User umi
+    IdentityFile C:/Users/panza/.ssh/umi_ed25519
+    IdentitiesOnly yes
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 30
+
+Host umi-user-usb
+    HostName 192.168.42.1
+    User umi
+    IdentityFile C:/Users/panza/.ssh/umi_ed25519
+    IdentitiesOnly yes
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 30
