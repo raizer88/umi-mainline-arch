@@ -102,3 +102,37 @@ python3 tools/pack-umi.py --dtb out/sm8250-xiaomi-umi-wifi.dtb \
 - vendor firmware/DTB dumps
 
 Those stay on the owner's PC/device.
+
+## 7. Boot hangs on a charger-only cable (USB-serial getty)
+
+With a **charger** (no USB host) the boot can stop on the kernel console after
+WiFi association and `8021q`; connecting the same cable to a PC lets it finish.
+The pstore is a clean shutdown, not a panic.
+
+The blocker is `serial-getty@ttyGS0.service`:
+
+```text
+BindsTo=dev-ttyGS0.device
+Before=getty.target
+Restart=always
+```
+
+Without a stable USB host the `ttyGS0` gadget state makes the getty stop and
+restart, blocking `getty.target`; `getty@tty1` (autologin) and Plasma never
+start. `systemd-networkd-wait-online` on `usb0` is a false lead. Excluding
+`usb0` with `RequiredForOnline=no` is still useful, but it does not fix this
+boot by itself.
+
+Workaround:
+
+```sh
+sudo systemctl disable --now serial-getty@ttyGS0.service
+```
+
+The USB RNDIS network (`usb0`, 192.168.42.1/24) and SSH remain available; only
+the serial console on the gadget is lost. Recovery is then SSH/WiFi, the PC USB
+gadget, or TWRP. Re-enable the unit manually when a serial console is needed and
+keep a PC host attached.
+
+See [SYSTEM-INTEGRATION.md](SYSTEM-INTEGRATION.md) §5 for the network unit and
+the related charger/Type-C log noise.

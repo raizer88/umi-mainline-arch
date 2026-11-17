@@ -1,0 +1,7 @@
+[Unit]
+Description=Software 80/70 charge limit
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/umi-charge-limit

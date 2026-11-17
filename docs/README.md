@@ -7,6 +7,7 @@ The field-report documents added by this branch are in **English**:
 |---|---|
 | [FIELD-REPORT.md](FIELD-REPORT.md) | what was done, what works, what does not, hardware variants |
 | [ARCH-INSTALL.md](ARCH-INSTALL.md) | WSL build, rootfs, Plasma, modules, flashing, resize, SSH |
+| [SYSTEM-INTEGRATION.md](SYSTEM-INTEGRATION.md) | RTC/NTP, pacman sandbox, systemd units/timers, charge limit, charger-only boot, Cloudflare, Chromium/CDP |
 | [WIFI-WORKAROUND.md](WIFI-WORKAROUND.md) | QCA6390 ath11k scan-abort workaround (pinned BSSID/freq + 90 s timer) |
 | [UFS-LPM.md](UFS-LPM.md) | UFS hibern8/link-dead panic and the `qcom,disable-lpm` fix |
 | [DISPLAY-RESUME.md](DISPLAY-RESUME.md) | blank/resume DSI timeout+FIFO glitch, off/on recovery, workaround |
@@ -35,3 +36,5 @@ detailed vendor-register/protocol archaeology):
 3. Build with [ARCH-INSTALL.md](ARCH-INSTALL.md).
 4. Bring up WiFi with [WIFI-WORKAROUND.md](WIFI-WORKAROUND.md).
 5. Keep [UFS-LPM.md](UFS-LPM.md) in mind when changing the UFS/power setup.
+6. For the post-install systemd, RTC, charge-limit and Cloudflare details read
+   [SYSTEM-INTEGRATION.md](SYSTEM-INTEGRATION.md).

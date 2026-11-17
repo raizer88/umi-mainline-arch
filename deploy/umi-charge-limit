@@ -1,0 +1,27 @@
+#!/bin/sh
+# Software 80/70 charge limit for the Mi 10 (umi).
+# The stock power-supply class has no charge_control_end_threshold; the
+# pm8150b charger exposes charging_enabled instead. This is a workaround,
+# not a battery-health guarantee. Install as /usr/local/sbin/umi-charge-limit.
+set -u
+
+HIGH="${HIGH:-80}"
+LOW="${LOW:-70}"
+CHARGER=/sys/class/power_supply/pm8150b-charger/charging_enabled
+BATTERY=/sys/class/power_supply/qcom-battery/capacity
+
+[ -r "$CHARGER" ] || exit 0
+[ -r "$BATTERY" ] || exit 0
+
+capacity=$(cat "$BATTERY" 2>/dev/null) || exit 0
+case "$capacity" in
+    ''|*[!0-9]*) exit 0 ;;
+esac
+
+if [ "$capacity" -ge "$HIGH" ]; then
+    printf 0 > "$CHARGER" 2>/dev/null || true
+elif [ "$capacity" -le "$LOW" ]; then
+    printf 1 > "$CHARGER" 2>/dev/null || true
+fi
+
+exit 0
