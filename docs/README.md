@@ -14,6 +14,7 @@ The field-report documents added by this branch are in **English**:
 | [DISPLAY-90HZ.md](DISPLAY-90HZ.md) | 90 Hz on the Samsung panel: stock dtbo timings, the 2-byte on-seq delta |
 | [CPU-FREQ.md](CPU-FREQ.md) | opt-in QCOM cpufreq/CPR, max frequencies, schedutil scaling, benchmark |
 | [KONA-COMPATIBLE.md](KONA-COMPATIBLE.md) | the stock dtbo rewrites the root compatible to `qcom,kona`; why `cpufreq-dt` deferred-probes |
+| [AUDIO.md](AUDIO.md) | CS35L41 amps on Tertiary MI2S, WCD938x on SoundWire, ADSP firmware from the modem partition |
 | [RECOVERY.md](RECOVERY.md) | backups, TWRP, restoring LineageOS, rescue images |
 
 Deploy templates live in [`../deploy/`](../deploy/); the kernel patch series is

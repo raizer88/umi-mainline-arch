@@ -49,6 +49,7 @@ partition — the kernel is always loaded into RAM with `fastboot boot`.
 | KDE Plasma Mobile | **works** | 6.8.2 on Wayland (kwin_wayland), boot straight into it; see `docs/FIELD-REPORT.md` |
 | Rootfs on UFS | **works** | 106 GiB ext4 on userdata (`/dev/sda34`) on the field-report unit |
 | 90 Hz mode | **works** | panel `j2_p2_1_38_0c_0a` (Samsung) at 1080×2340@90, 1112×2356 total; `timing@1` from the stock dtbo, see `docs/DISPLAY-90HZ.md` |
+| Audio | **DTS + packaging ready, untested** | two CS35L41 on Tertiary MI2S, WCD938x on SoundWire, ADSP firmware from the `modem` partition; see `docs/AUDIO.md` |
 
 ## Hardware
 

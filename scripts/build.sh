@@ -58,7 +58,7 @@ fi
 mkdir -p "$WS/out"
 
 echo "== [1/6] 同步 DTS 和面板驱动到内核树"
-for f in sm8250-xiaomi-umi-common.dtsi sm8250-xiaomi-umi.dts sm8250-xiaomi-umi-plus.dts umi-dtbo-stubs.dtsi xiaomi-umi-panels.dtsi sm8250-xiaomi-umi-touch.dtsi sm8250-xiaomi-umi-wifi.dts xiaomi-umi-battery.dtsi; do
+for f in sm8250-xiaomi-umi-common.dtsi sm8250-xiaomi-umi.dts sm8250-xiaomi-umi-plus.dts umi-dtbo-stubs.dtsi xiaomi-umi-panels.dtsi sm8250-xiaomi-umi-touch.dtsi sm8250-xiaomi-umi-wifi.dts xiaomi-umi-battery.dtsi sm8250-xiaomi-umi-audio.dtsi; do
 	[ -f "$WS/dts/$f" ] || continue
 	cp -f "$WS/dts/$f" "$TREE/arch/arm64/boot/dts/qcom/$f"
 done

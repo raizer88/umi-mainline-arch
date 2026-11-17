@@ -1,0 +1,379 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * sm8250-xiaomi-umi-audio.dtsi — audio on the Mi 10 (umi)
+ *
+ * Playback: APPS -> ADSP (q6asm/q6afe) -> TERTIARY MI2S (mi2s2: gpio133/134/135/137)
+ *           -> two CS35L41 amps (I2C control + I2S audio) -> receiver + speaker
+ * Capture:  WCD938x over SoundWire (swr1/swr2) + LPASS VA macro DMICs
+ *
+ * Values come from THIS unit's stock dtbo (fragment@125), not from another
+ * board: the amps are at 0x40 (RCV, IRQ 113) and 0x41 (LCV, IRQ 112), sharing
+ * reset GPIO 114 on i2c3 (qupv3_se3). A CSOT variant of the same phone uses
+ * 0x42 for the second amp; do not mix the two.
+ *
+ * Requirements outside this file:
+ *   - CONFIG_SND_SOC_CS35L41{,_I2C,_LIBRARY}
+ *   - qcom_pd_mapper must match "qcom,kona" (stock dtbo rewrites the root
+ *     compatible), see docs/KONA-COMPATIBLE.md
+ *   - ADSP firmware from the phone's own modem partition, see docs/AUDIO.md
+ */
+
+#include <dt-bindings/sound/qcom,q6afe.h>
+#include <dt-bindings/sound/qcom,q6asm.h>
+
+/* ---------------------------------------------------------------- codec */
+
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	cs35l41_speaker: speaker-amp@40 {
+		compatible = "cirrus,cs35l41";
+		status = "okay";
+		reg = <0x40>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <113 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cs35l41_spk_irq &cs35l41_reset>;
+		reset-gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
+		cirrus,temp-warn_threshold = <3>;
+		cirrus,boost-peak-milliamp = <4000>;
+		cirrus,boost-ind-nanohenry = <1000>;
+		cirrus,boost-cap-microfarad = <15>;
+		cirrus,asp-sdout-hiz = <3>;
+		cirrus,gpio2-src-select = <4>;
+		cirrus,gpio2-output-enable;
+		sound-name-prefix = "RCV";
+		VA-supply = <&vreg_s4a_1p8>;
+		VP-supply = <&vph_pwr>;
+		#sound-dai-cells = <1>;
+	};
+
+	cs35l41_rcv: speaker-amp@41 {
+		compatible = "cirrus,cs35l41";
+		status = "okay";
+		reg = <0x41>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <112 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cs35l41_rcv_irq &cs35l41_reset>;
+		reset-gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
+		cirrus,temp-warn_threshold = <3>;
+		cirrus,boost-peak-milliamp = <4000>;
+		cirrus,boost-ind-nanohenry = <1000>;
+		cirrus,boost-cap-microfarad = <15>;
+		cirrus,right-channel-amp;
+		cirrus,asp-sdout-hiz = <3>;
+		cirrus,gpio2-src-select = <4>;
+		cirrus,gpio2-output-enable;
+		sound-name-prefix = "LCV";
+		VA-supply = <&vreg_s4a_1p8>;
+		VP-supply = <&vph_pwr>;
+		#sound-dai-cells = <1>;
+	};
+};
+
+/* WCD938x: analogue codec behind SoundWire, also carries the mic biases. */
+/ {
+	wcd938x: audio-codec {
+		compatible = "qcom,wcd9380-codec";
+		status = "okay";
+		reset-gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
+
+		vdd-buck-supply = <&vreg_s4a_1p8>;
+		vdd-rxtx-supply = <&vreg_s4a_1p8>;
+		vdd-io-supply = <&vreg_s4a_1p8>;
+		vdd-mic-bias-supply = <&vreg_bob>;
+
+		/*
+		 * 2.75 V: the vendor overlay uses these values. At 1.8 V the
+		 * analogue mics get no bias and the headset (mbhc) button
+		 * detection stops working.
+		 */
+		qcom,micbias1-microvolt = <2750000>;
+		qcom,micbias2-microvolt = <2750000>;
+		qcom,micbias3-microvolt = <2750000>;
+		qcom,micbias4-microvolt = <2750000>;
+		qcom,mbhc-buttons-vthreshold-microvolt = <75000 150000 237000 500000 500000 500000 500000 500000>;
+		qcom,mbhc-headset-vthreshold-microvolt = <1700000>;
+		qcom,mbhc-headphone-vthreshold-microvolt = <50000>;
+		qcom,rx-device = <&wcd_rx>;
+		qcom,tx-device = <&wcd_tx>;
+
+		#sound-dai-cells = <1>;
+	};
+};
+
+/* ---------------------------------------------------------------- sound card */
+
+&sound {
+	compatible = "qcom,sm8250-sndcard";
+	model = "Xiaomi Mi 10";
+	pinctrl-names = "default";
+	pinctrl-0 = <&tert_tdm_active>;
+	widgets =
+		"Speaker", "RCV Speaker",
+		"Speaker", "LCV Speaker",
+		"Microphone", "Digital Mic0",
+		"Microphone", "Digital Mic1";
+	audio-routing =
+		"AMIC1", "MIC BIAS1",
+		"AMIC2", "MIC BIAS2",
+		"AMIC3", "MIC BIAS3",
+		"AMIC4", "MIC BIAS3",
+		"Digital Mic0", "MIC BIAS3",
+		"Digital Mic1", "MIC BIAS3",
+		"TX SWR_ADC0", "ADC1_OUTPUT",
+		"TX SWR_ADC1", "ADC2_OUTPUT",
+		"DMIC1 Pin", "MIC BIAS3",
+		"DMIC2 Pin", "MIC BIAS3",
+		"TX SWR_DMIC0", "DMIC1_OUTPUT",
+		"TX SWR_DMIC1", "DMIC2_OUTPUT",
+		"VA_AIF1 CAP", "VA_SWR_CLK",
+		"Digital Mic0", "VA MIC BIAS3",
+		"Digital Mic1", "VA MIC BIAS3",
+		"DMIC0 Pin", "Digital Mic0",
+		"DMIC1 Pin", "Digital Mic1",
+		"VA DMIC0", "VA MIC BIAS3",
+		"VA DMIC1", "VA MIC BIAS3",
+		"VA SWR_MIC0", "VA_SWR_CLK",
+		"VA SWR_MIC1", "VA_SWR_CLK",
+		"VA SWR_MIC0", "DMIC1_OUTPUT",
+		"VA SWR_MIC1", "DMIC2_OUTPUT";
+
+	mm1-dai-link {
+		link-name = "MultiMedia1";
+		cpu {
+			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA1>;
+		};
+	};
+
+	mm2-dai-link {
+		link-name = "MultiMedia2";
+		cpu {
+			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA2>;
+		};
+	};
+
+	/* Receiver + speaker, both on Tertiary MI2S (mi2s2 pins). */
+	speaker-dai-link {
+		link-name = "Tertiary MI2S Playback";
+		cpu {
+			sound-dai = <&q6afedai TERTIARY_MI2S_RX>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			/* dai-link order decides the I2S slot: first = left */
+			sound-dai = <&cs35l41_rcv 0>, <&cs35l41_speaker 0>;
+		};
+	};
+
+	wcd-capture-dai-link {
+		link-name = "WCD Capture";
+		cpu {
+			sound-dai = <&q6afedai TX_CODEC_DMA_TX_3>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			sound-dai = <&wcd938x 1>, <&swr2 0>, <&txmacro 0>;
+		};
+	};
+
+	va-dai-link {
+		link-name = "VA Capture";
+		cpu {
+			sound-dai = <&q6afedai VA_CODEC_DMA_TX_0>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			sound-dai = <&vamacro 0>;
+		};
+	};
+};
+
+&q6afedai {
+	dai@20 {
+		reg = <TERTIARY_MI2S_RX>;
+		qcom,sd-lines = <1>;
+	};
+};
+
+&q6asmdai {
+	/*
+	 * The ADSP reaches shared memory through the apps_smmu audio context
+	 * bank. Without this the DSP gets a raw physical address, the write is
+	 * refused and playback fails with ASM_DATA_CMD_WRITE_V2 -> ENOTREADY.
+	 */
+	iommus = <&apps_smmu 0x1801 0x0>;
+
+	dai@0 {
+		reg = <0>;
+	};
+
+	dai@1 {
+		reg = <1>;
+	};
+
+	dai@2 {
+		reg = <2>;
+	};
+};
+
+/* ---------------------------------------------------------------- macro codecs */
+
+&txmacro {
+	status = "okay";
+};
+
+&rxmacro {
+	status = "okay";
+};
+
+&vamacro {
+	pinctrl-names = "default";
+	pinctrl-0 = <&dmic01_active>;
+	vdd-micb-supply = <&vreg_s4a_1p8>;
+	qcom,dmic-sample-rate = <600000>;
+};
+
+/* ---------------------------------------------------------------- SoundWire */
+
+/* swr1 is the RX (playback) side, swr2 the TX (capture) side. */
+&swr1 {
+	status = "okay";
+	qcom,dout-ports = <5>;
+	qcom,din-ports = <0>;
+
+	wcd_rx: wcd9380-rx@0,4 {
+		compatible = "sdw20217010d00";
+		reg = <0 4>;
+		qcom,rx-port-mapping = <1 2 3 4 5>;
+	};
+};
+
+&swr2 {
+	status = "okay";
+	qcom,din-ports = <4>;
+	qcom,dout-ports = <0>;
+
+	wcd_tx: wcd9380-tx@0,3 {
+		compatible = "sdw20217010d00";
+		reg = <0 3>;
+		qcom,tx-port-mapping = <2 3 4 5>;
+	};
+};
+
+/* ---------------------------------------------------------------- pinmux */
+
+/* mi2s2 TDM: sck/data0/ws/data1 = gpio133/134/135/137. */
+&tert_mi2s_active {
+	/delete-node/ data0-pins;
+
+	ws-pins {
+		/delete-property/ output-high;
+	};
+
+	data1-pins {
+		pins = "gpio137";
+		function = "mi2s2_data1";
+		drive-strength = <8>;
+		bias-disable;
+	};
+};
+
+&tlmm {
+	umi_wcd_reset_default: wcd938x-reset-default-state {
+		pins = "gpio32";
+		function = "gpio";
+		drive-strength = <16>;
+		output-high;
+	};
+
+	umi_wcd_reset_sleep: wcd938x-reset-sleep-state {
+		pins = "gpio32";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-disable;
+		output-low;
+	};
+
+	cs35l41_rcv_irq: cs35l41-irq {
+		pins = "gpio112";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+		input-enable;
+	};
+
+	cs35l41_spk_irq: cs35l41-spk-irq {
+		pins = "gpio113";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+		input-enable;
+	};
+
+	cs35l41_reset: cs35l41-reset {
+		pins = "gpio114";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	tert_tdm_active: tert-tdm-active-state {
+		sck-pins {
+			pins = "gpio133";
+			function = "mi2s2_sck";
+			drive-strength = <8>;
+			bias-disable;
+			output-high;
+		};
+
+		din-pins {
+			pins = "gpio134";
+			function = "mi2s2_data0";
+			drive-strength = <8>;
+			bias-disable;
+		};
+
+		ws-pins {
+			pins = "gpio135";
+			function = "mi2s2_ws";
+			drive-strength = <8>;
+			bias-disable;
+			output-high;
+		};
+
+		dout-pins {
+			pins = "gpio137";
+			function = "mi2s2_data1";
+			drive-strength = <8>;
+			bias-disable;
+		};
+	};
+};
+
+/* ---------------------------------------------------------------- ADSP
+
+ * The ADSP runs the audio topology (q6asm/q6afe). Its firmware lives on the
+ * phone's own "modem" partition, not in this repository:
+ *   /dev/disk/by-partlabel/modem -> image/adsp.mdt + adsp.b00..b18
+ * plus adspr.jsn / adspua.jsn, which pd-mapper reads to publish the audio
+ * power domains. install-audio-firmware.sh links them into /lib/firmware.
+ */
+&adsp {
+	status = "okay";
+	firmware-name = "qcom/sm8250/xiaomi/umi/adsp.mbn";
+};
