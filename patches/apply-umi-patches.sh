@@ -36,6 +36,11 @@ python3 "$HERE/ufs-disable-lpm.py"
 # blocklisted and qcom_pd_mapper maps the ADSP power domains.
 TREE="$TREE" python3 "$HERE/qcom-kona-compatible.py"
 
+# The Mi 10 has two CS35L41 amps on one dai-link; only codec DAI 0 used to get
+# a format/bit clock/RX slot, so hw_params failed with -EINVAL.
+TREE="$TREE" python3 "$HERE/sm8250-dual-cs35l41.py"
+TREE="$TREE" python3 "$HERE/cs35l41-ignore-pup.py"
+
 echo "--- verification ---"
 grep -n "early WLAN power-on" "$P" | head -3 || true
 grep -n "qcom,disable-lpm" "$U" | head -3 || true

@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 # Audio on the Mi 10 (`umi`)
 
-Status: **DTS, kernel patch and packaging are in place; the sound card has not
-been verified on the device yet.** The pieces below are what the hardware needs,
-read out of *this* unit's stock `dtbo`, not copied from another board.
+Status: **works on the device.** Playback verified with `speaker-test` on both
+channels; the two CS35L41 amps, the ADSP and the WCD938x all bind. The pieces
+below are what the hardware needs, read out of *this* unit's silicon and stock
+`dtbo`, not copied from another board.
 
 ## Topology
 
