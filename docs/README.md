@@ -11,6 +11,7 @@ The field-report documents added by this branch are in **English**:
 | [WIFI-WORKAROUND.md](WIFI-WORKAROUND.md) | QCA6390 ath11k scan-abort workaround (pinned BSSID/freq + 90 s timer) |
 | [UFS-LPM.md](UFS-LPM.md) | UFS hibern8/link-dead panic and the `qcom,disable-lpm` fix |
 | [DISPLAY-RESUME.md](DISPLAY-RESUME.md) | blank/resume DSI timeout+FIFO glitch, off/on recovery, workaround |
+| [DISPLAY-90HZ.md](DISPLAY-90HZ.md) | 90 Hz on the Samsung panel: stock dtbo timings, the 2-byte on-seq delta |
 | [CPU-FREQ.md](CPU-FREQ.md) | opt-in QCOM cpufreq/CPR, max frequencies, schedutil scaling, benchmark |
 | [KONA-COMPATIBLE.md](KONA-COMPATIBLE.md) | the stock dtbo rewrites the root compatible to `qcom,kona`; why `cpufreq-dt` deferred-probes |
 | [RECOVERY.md](RECOVERY.md) | backups, TWRP, restoring LineageOS, rescue images |
