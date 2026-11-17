@@ -32,8 +32,14 @@ python3 "$HERE/pcie-qcom-umi-extra.py"
 # UFS: clear CLK_GATING/HIBERN8/CLK_SCALING/RPM when qcom,disable-lpm is set.
 python3 "$HERE/ufs-disable-lpm.py"
 
+# SM8250 after the stock dtbo overlay: match "qcom,kona" so cpufreq-dt stays
+# blocklisted and qcom_pd_mapper maps the ADSP power domains.
+TREE="$TREE" python3 "$HERE/qcom-kona-compatible.py"
+
 echo "--- verification ---"
 grep -n "early WLAN power-on" "$P" | head -3 || true
 grep -n "qcom,disable-lpm" "$U" | head -3 || true
 grep -n "ELBI_SYS_STTS" "$P" | head -3 || true
+grep -n "qcom,kona" "$TREE/drivers/cpufreq/cpufreq-dt-platdev.c" \
+	"$TREE/drivers/soc/qcom/qcom_pd_mapper.c" | head -4 || true
 echo "now run scripts/build.sh with TREE=$TREE"

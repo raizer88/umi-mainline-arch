@@ -12,6 +12,7 @@ The field-report documents added by this branch are in **English**:
 | [UFS-LPM.md](UFS-LPM.md) | UFS hibern8/link-dead panic and the `qcom,disable-lpm` fix |
 | [DISPLAY-RESUME.md](DISPLAY-RESUME.md) | blank/resume DSI timeout+FIFO glitch, off/on recovery, workaround |
 | [CPU-FREQ.md](CPU-FREQ.md) | opt-in QCOM cpufreq/CPR, max frequencies, schedutil scaling, benchmark |
+| [KONA-COMPATIBLE.md](KONA-COMPATIBLE.md) | the stock dtbo rewrites the root compatible to `qcom,kona`; why `cpufreq-dt` deferred-probes |
 | [RECOVERY.md](RECOVERY.md) | backups, TWRP, restoring LineageOS, rescue images |
 
 Deploy templates live in [`../deploy/`](../deploy/); the kernel patch series is
