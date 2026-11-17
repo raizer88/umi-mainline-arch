@@ -71,14 +71,49 @@ publish the ADSP audio power domains. Without them the log says
 ## Modules
 
 ```sh
-modprobe remoteproc_q6v5_pas qcom_pd_mapper
+modprobe qcom_pd_mapper qcom_q6v5_pas
 modprobe q6core q6afe q6afe-dai q6afe-clocks q6asm q6asm-dai q6adm q6routing
 modprobe snd-soc-cs35l41-i2c snd-soc-sm8250
 ```
 
 The q6 components are not reliably auto-loaded by modalias, so the card defers
-once and never retries. Load them explicitly (or list them in
-`/etc/modules-load.d/`).
+once and never retries. `deploy/umi-audio-init.sh` (installed as the
+`umi-audio-init` unit) does all of it: modules, the routing below, and the
+levels.
+
+## Routing is required
+
+`hw:0,0` is the `MultiMedia1` **frontend**; it has no backend until this route
+is on, and `hw_params` fails with `-EINVAL` until it is:
+
+```sh
+amixer -c 0 sset 'TERT_MI2S_RX Audio Mixer MultiMedia1' on
+```
+
+The RX controls are named the other way round from the TX ones, which is easy to
+miss:
+
+```text
+RX:  "<port> Audio Mixer MultiMediaN"     e.g. TERT_MI2S_RX Audio Mixer MultiMedia1
+TX:  "MultiMediaN Mixer <port>"           e.g. MultiMedia1 Mixer TERT_MI2S_TX
+```
+
+## Levels
+
+The driver defaults (`913/913` digital, `20/20` analog) are loud enough to trip
+`cs35l41 3-0042: Over temperature warning`. The init script sets 42 % and 60 %.
+These controls are **not** simple controls, so `sset <name>` fails — use
+`cset name='...'`, and address them by name rather than numid:
+
+```sh
+amixer -c 0 cset name='LCV Digital PCM Volume' 42%
+amixer -c 0 cset name='RCV Digital PCM Volume' 42%
+amixer -c 0 cset name='LCV Analog PCM Volume'  60%
+amixer -c 0 cset name='RCV Analog PCM Volume'  60%
+```
+
+Override at boot with `DIGITAL_PCT=` / `ANALOG_PCT=` in the unit's
+`Environment=` lines.
 
 ## Verify
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=Mi 10 audio init (ADSP, q6 modules, routing, CS35L41 levels)
+After=sound.target
+ConditionPathExists=/proc/asound/cards
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=DIGITAL_PCT=42
+Environment=ANALOG_PCT=60
+ExecStart=/usr/local/sbin/umi-audio-init
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target
