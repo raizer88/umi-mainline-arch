@@ -49,14 +49,14 @@
 		#sound-dai-cells = <1>;
 	};
 
-	cs35l41_rcv: speaker-amp@41 {
+	cs35l41_rcv: speaker-amp@42 {
 		compatible = "cirrus,cs35l41";
 		status = "okay";
-		reg = <0x41>;
+		reg = <0x42>;
 		interrupt-parent = <&tlmm>;
 		interrupts = <112 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&cs35l41_rcv_irq &cs35l41_reset>;
+		pinctrl-0 = <&cs35l41_rcv_irq>;
 		reset-gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
 		cirrus,temp-warn_threshold = <3>;
 		cirrus,boost-peak-milliamp = <4000>;
@@ -375,5 +375,5 @@
  */
 &adsp {
 	status = "okay";
-	firmware-name = "qcom/sm8250/xiaomi/umi/adsp.mbn";
+	firmware-name = "qcom/sm8250/xiaomi/umi/adsp.mdt";
 };

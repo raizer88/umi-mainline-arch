@@ -17,7 +17,7 @@ Capture   WCD938x over SoundWire (swr1 = RX, swr2 = TX)
 | Part | Bus | Address | Notes |
 |---|---|---|---|
 | CS35L41 (bottom speaker, prefix `RCV`) | `i2c3` (`qupv3_se3`) | `0x40` | IRQ GPIO 113 |
-| CS35L41 (top receiver, prefix `LCV`) | `i2c3` | `0x41` | IRQ GPIO 112, `cirrus,right-channel-amp` |
+| CS35L41 (top receiver, prefix `LCV`) | `i2c3` | `0x42` | IRQ GPIO 112, `cirrus,right-channel-amp` |
 | both amps | — | reset GPIO 114 shared | |
 | WCD938x | SoundWire | `0:4` (rx) / `0:3` (tx) | reset GPIO 32, micbias 2.75 V |
 
@@ -97,7 +97,8 @@ If the card does not appear:
    `qcom,kona` entry are missing.
 3. `dmesg | grep 'ASM_DATA_CMD_WRITE_V2'` — playback fails with `ENOTREADY`
    when `&q6asmdai` has no `iommus` (the DTS sets `apps_smmu 0x1801`).
-4. `i2cdetect -y 3` — the amps must answer at `0x40` and `0x41`.
+4. `i2cdetect -y 3` — the amps must answer at `0x40` and `0x42` (`0x40` shows as
+   `UU` once the driver has bound it, `0x42` stays visible).
 
 ## Known gaps
 
