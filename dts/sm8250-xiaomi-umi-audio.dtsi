@@ -117,6 +117,12 @@
 		"Microphone", "Digital Mic0",
 		"Microphone", "Digital Mic1";
 	audio-routing =
+		/* Speaker widgets need an explicit route to the codec output: the
+		 * "widgets" entries above only declare them, they do not connect
+		 * them, so "RCV Speaker"/"LCV Speaker" would stay with no input and
+		 * never power up the amp's SPK output. */
+		"RCV Speaker", "RCV SPK",
+		"LCV Speaker", "LCV SPK",
 		"AMIC1", "MIC BIAS1",
 		"AMIC2", "MIC BIAS2",
 		"AMIC3", "MIC BIAS3",
