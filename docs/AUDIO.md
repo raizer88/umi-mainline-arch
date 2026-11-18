@@ -225,3 +225,45 @@ alsa_output.platform-sound.HiFi__Speaker__sink   s24-32le 2ch 48000Hz
 The `api.alsa.use-acp = false` workaround in `deploy/wireplumber-umi-alsa.conf`
 is therefore obsolete: rename that file to `.disabled` (or drop it) once the
 UCM is installed.
+
+### The ADSP acknowledges the clock and never enables it
+
+Instrumented `sm8250_snd_startup()` and `q6afe_port_set_sysclk()` on the device
+(18 Nov 2026, kernel `6.12.94-umi #6`, modules rebuilt and loaded):
+
+```text
+q6afe-dai ...: umi-instr: set_sysclk -> 0
+q6afe-dai ...: umi-instr: set_fmt -> 0
+qcom-q6afe aprsvc:service:4:4: umi-instr-afe:
+    clk_id=0x104 freq=1536000 enable=1 ret=0
+```
+
+- `clk_id = 0x104` is `Q6AFE_LPASS_CLK_ID_TER_MI2S_IBIT` — the right clock.
+- `freq = 1536000` is `MI2S_BCLK_RATE` — 48 kHz × 32 bit.
+- `enable = 1`, and `q6afe_set_lpass_clock_v2()` returns 0.
+
+So the kernel builds the correct AFE clock command, the DSP acknowledges it
+with success, and `LPASS_CLK_ID_TER_MI2S_IBIT` still reads `en=0` in
+`clk_summary` afterwards.
+
+Everything below the AFE command is firmware behaviour, and it lies: the clock
+never turns on, the amps never see valid I2S frames, `PUP_DONE` never arrives
+and the output stage (`0x742c`) is never enabled.
+
+Next steps, none of which are DTS changes:
+
+1. The ADSP image comes from the phone's own `modem` partition
+   (`qcom/sm8250/xiaomi/umi/adsp.mdt`, copied by
+   `deploy/install-audio-firmware.sh`). Compare it against the reference port,
+   which loads `adsp.mdt` through `msm-firmware-loader` directly from the
+   partition: a stale or mismatched `adsp.b*` split would explain an AFE that
+   accepts clock commands and ignores them.
+2. Try the reference port's own kernel on this unit; if the same tone plays
+   there, the difference is our firmware, not our code.
+3. Decode what the AFE actually reports for the TERTIARY MI2S port
+   (`q6afe_port_start()` path, `AFE_PORT_CMD_DEVICE_START` response), which the
+   current driver discards.
+
+The instrumentation used here is not committed: both files were restored and
+the rebuilt `snd-soc-sm8250.ko` is byte-identical to the original
+(`md5 17bed4f01093c60c8994746bc9783c57`).
