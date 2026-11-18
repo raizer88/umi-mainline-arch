@@ -180,6 +180,27 @@
 		};
 	};
 
+	/*
+	 * Loopback: the amps feed their processed output back on ASP TX, which the
+	 * vendor firmware uses for call AEC. The reference port declares this link
+	 * (as "Tertiary TDM Capture"); we had no capture side at all, so the codec
+	 * dai-link only ever ran unidirectional.
+	 */
+	amp-loopback-dai-link {
+		link-name = "Tertiary TDM Capture";
+		cpu {
+			sound-dai = <&q6afedai TERTIARY_TDM_TX_0>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			sound-dai = <&cs35l41_rcv 0>, <&cs35l41_speaker 0>;
+		};
+	};
+
 	wcd-capture-dai-link {
 		link-name = "WCD Capture";
 		cpu {
