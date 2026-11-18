@@ -37,10 +37,11 @@
 		pinctrl-0 = <&cs35l41_spk_irq &cs35l41_reset>;
 		reset-gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
 		cirrus,temp-warn_threshold = <3>;
+		cirrus,boost-type = <0>;
 		cirrus,boost-peak-milliamp = <4000>;
 		cirrus,boost-ind-nanohenry = <1000>;
 		cirrus,boost-cap-microfarad = <15>;
-		cirrus,asp-sdout-hiz = <3>;
+		cirrus,asp-sdout-hiz = <1>;
 		cirrus,gpio2-src-select = <4>;
 		cirrus,gpio2-output-enable;
 		sound-name-prefix = "RCV";
@@ -59,11 +60,12 @@
 		pinctrl-0 = <&cs35l41_rcv_irq>;
 		reset-gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
 		cirrus,temp-warn_threshold = <3>;
+		cirrus,boost-type = <0>;
 		cirrus,boost-peak-milliamp = <4000>;
 		cirrus,boost-ind-nanohenry = <1000>;
 		cirrus,boost-cap-microfarad = <15>;
 		cirrus,right-channel-amp;
-		cirrus,asp-sdout-hiz = <3>;
+		cirrus,asp-sdout-hiz = <1>;
 		cirrus,gpio2-src-select = <4>;
 		cirrus,gpio2-output-enable;
 		sound-name-prefix = "LCV";
