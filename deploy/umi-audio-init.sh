@@ -42,6 +42,20 @@ for m in q6core q6afe q6afe-dai q6afe-clocks q6asm q6asm-dai q6adm q6routing \
 	modprobe "$m" 2>/dev/null || log "modprobe $m failed"
 done
 
+# The ADSP reports "running" before it has registered its APR services, and the
+# sound card binds only once the q6 DAIs have names. Without this the card probe
+# fails with "snd-sm8250: MultiMedia1: error getting cpu dai name", and because
+# the card node has no status property nothing retries it later: the boot ends
+# with no sound card at all. Reload the machine driver until the card appears.
+i=0
+while [ "$i" -lt 40 ]; do
+	grep -q "sm8250" /proc/asound/cards 2>/dev/null && break
+	modprobe -r snd-soc-sm8250 2>/dev/null
+	modprobe snd-soc-sm8250 2>/dev/null
+	sleep 0.25
+	i=$((i + 1))
+done
+
 # ---- sound card ------------------------------------------------------------
 i=0
 while [ "$i" -lt 50 ]; do

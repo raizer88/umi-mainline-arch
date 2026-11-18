@@ -1,14 +1,26 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 # Audio on the Mi 10 (`umi`)
 
-Status: **playback does not work: no audio reaches the speakers.** The card
-binds, both CS35L41 amps bind on I2C, the ADSP runs, the whole DAPM chain powers
-up during a stream, and the DSP acknowledges the MI2S clock command — yet the
-amps never raise `PUP_DONE` and never enable their output stage (`0x742c`), so
-nothing comes out. Everything tried and measured is recorded in
-[Not working: playback has no valid frames](#not-working-playback-has-no-valid-frames)
-at the end of this file. The pieces below are what the hardware needs, read out
-of *this* unit's silicon and stock `dtbo`, not copied from another board.
+Status: **works, but only with S16_LE and no MMAP.** Playback is audible when
+the ALSA device is opened the way `speaker-test` opens it — `RW_INTERLEAVED`,
+`S16_LE`, 48 kHz. PipeWire's defaults for this card (`S24_LE`,
+`MMAP_INTERLEAVED`) produce a PCM that reports `RUNNING`, advances `hw_ptr` at
+48 kHz, powers up the whole ASoC DAPM chain and is completely silent.
+
+The fix is `deploy/wireplumber-umi-alsa-format.conf`, installed as
+`~/.config/wireplumber/wireplumber.conf.d/52-umi-alsa-periods.conf`; verified
+audible on the device. See [Why PipeWire was silent](#why-pipewire-was-silent)
+at the end of this file, including the misleading leads that cost most of the
+investigation.
+
+There is also a boot race, unrelated to the format: the ADSP reports `running`
+before its APR services exist, so the card probe can fail with
+`snd-sm8250: MultiMedia1: error getting cpu dai name` and no card is created at
+all. `deploy/umi-audio-init.sh` retries the machine driver until the card
+appears.
+
+The pieces below are what the hardware needs, read out of *this* unit's silicon
+and stock `dtbo`, not copied from another board.
 
 ## Topology
 
@@ -127,7 +139,8 @@ dmesg | grep -iE 'adsp|PDM|apr|cs35l41|sm8250-sndcard'
 #         PDM: service 'avs/audio' ...
 #         cs35l41 ... probe
 aplay -l                 # the card should be listed
-speaker-test -c2 -t wav  # left = bottom speaker, right = top receiver
+speaker-test -c2 -t wav  # audible: RW_INTERLEAVED + S16_LE
+pw-play /path/to.wav     # audible only with deploy/wireplumber-umi-alsa-format.conf
 ```
 
 If the card does not appear:
@@ -142,77 +155,78 @@ If the card does not appear:
 
 ## Known gaps
 
-- **Playback produces no sound at all** — see the section below.
+- Playback works only as `S16_LE` without MMAP; the backend accepts
+  `S24_LE` + MMAP and stays silent. See below.
 - USB-C analogue headsets (WCD938x path) untested.
 - Earpiece-only routing for calls depends on the modem, which is not ported.
 - The receiver is driven as a normal speaker channel; call audio would need the
   voice call dai links.
 
-## Not working: playback has no valid frames
+## Why PipeWire was silent
 
-Measured on 18 Nov 2026, kernel `6.12.94-umi #6`, while a 440 Hz tone ran
-through PipeWire (PCM state `RUNNING`, `hw_ptr` advancing at 48000 frame/s).
+Measured on 18 Nov 2026, kernel `6.12.94-umi #6`, playing a 440 Hz tone and
+reading `/proc/asound/card0/pcm0p/sub0/hw_params` on each path:
 
-The software chain looks healthy:
+| path | access | format | period | buffer | audible |
+|---|---|---|---|---|---|
+| `speaker-test -D hw:0,0` | `RW_INTERLEAVED` | `S16_LE` | 12000 | 48000 | **yes** |
+| PipeWire, defaults | `MMAP_INTERLEAVED` | `S24_LE` | 480 | 3840 | no |
+| PipeWire, S16 + no MMAP | `RW_INTERLEAVED` | `S16_LE` | 480 | 1920 | **yes** |
 
-```text
-TERT_MI2S_RX                        On    (backend DAI)
-Tertiary MI2S Playback              On
-TERT_MI2S_RX Audio Mixer            On
-RCV/LCV Speaker                     On  in 1 out 1
-RCV/LCV SPK, Main AMP, CLASS H      On
-```
+Both audible runs were confirmed by ear on the phone, and the middle one
+reproduced the failure every time.
 
-Reading the amps over I2C (not the driver's regmap cache) gives, on `0x42`:
+So the backend accepts `S24_LE` + MMAP, runs the PCM at exactly 48000 frame/s,
+and delivers nothing. It only works in read/write mode with 16-bit samples.
 
-| register | value | meaning |
-|---|---|---|
-| `0x2014` | `0x00000001` | `GLOBAL_EN` set |
-| `0x2018` | `0x00000021` | `Main AMP` + boost enabled |
-| `0x201c` | `0x01000010` | `CLASS H` on |
-| `0x4800` | `0x00010000` | `ASPRX1` enabled |
-| `0x2d10` | `0x00054034` | FS monitor reads a ratio (reset value `0x00020016`) |
-| `0x10010` | `0x00400000` | **`PUP_DONE` (bit 24) never arrives** |
-| `0x742c` | `0x00000000` | **output stage never enabled** |
+`sw_params` showed the same split: with MMAP PipeWire sets
+`start_threshold = S64_MAX` (start delegated to the MMAP path, which this
+backend never completes); `speaker-test` uses `start_threshold = buffer_size`.
 
-`0x742c` is written only on the `EXT_BOOST` path (`safe_to_active_en_spk`
-sets it to `0xf9`); with `boost-type = <0>` (`INT_BOOST`) the driver never
-touches it. Writing it by hand has no effect: it sits behind the test key.
-
-The root cause is one level up:
+The configuration that fixes it:
 
 ```text
-$ grep TER_MI2S /sys/kernel/debug/clk/clk_summary      # during playback
- LPASS_CLK_ID_TER_MI2S_EBIT    en=0
- LPASS_CLK_ID_TER_MI2S_IBIT    en=0
+api.alsa.disable-mmap = true
+audio.format          = "S16LE"
+audio.rate            = 48000
+audio.channels        = 2
+api.alsa.period-size  = 12000
+api.alsa.period-num   = 4
 ```
 
-**This row is a red herring, not the root cause.** `q6afe_mi2s_set_sysclk()`
-does not go through the Linux clock framework at all: it sends an AFE command
-to the DSP (`q6afe_port_set_sysclk()` -> `q6afe_set_lpass_clock_v2()`). The
-`clk_summary` entries come from the separate `q6afe_clocks` provider and are
-not on the playback path — `q6afe_clocks` is loaded (13 references) and the
-`deviceless` consumer is normal.
+### Leads that cost time, and what they actually showed
 
-The command itself is correct; instrumenting `q6afe_port_set_sysclk()` showed
+These all looked like the cause and none of them was. Recorded so nobody
+repeats them:
+
+| observation | why it misled |
+|---|---|
+| `PUP_DONE` never set, `0x742c` stays 0 | with `INT_BOOST` the driver never writes `0x742c` at all: that branch only sets `GLOBAL_EN` and polls. `0x742c` is reached only on `EXT_BOOST`, after PUP_DONE |
+| `clk_summary` shows `TER_MI2S_IBIT en=0` | this path never touches the Linux clock framework; `q6afe_mi2s_set_sysclk()` sends an AFE command |
+| DSP acknowledges the clock with `ret=0` | true and correct; `afe_apr_send_pkt()` does check `result->status`. It was simply not the failure |
+| `TST_FS_MON0` differs while playing | a configuration register with a live field, not a bit-clock measurement |
+| `EXT_BOOST` adds a `VSPK` widget that turns on | the chain then reaches `SPK` and `VSPK`, `0x742c = 0xf9`, and it is *still* silent — because the fault was the sample format, one layer up |
+| amp at `0x41` per the stock dtbo | `0x41` does not ACK on I2C; `0x42` returns the Cirrus ID `0x35a40`. The stock dtbo describes the CSOT variant |
+| raw 32-bit I2C register reads | byte order is ambiguous over `i2ctransfer`; do not draw conclusions from them |
+
+Also ruled out by measurement: the ADSP firmware (20/20 files byte-identical to
+the `modem` partition), the kernel config (identical to the reference port
+option by option), the boost values (4000 mA / 1000 nH / 15 uF, matching the
+stock dtbo), UCM presence, sink volume, and the USB cable (a single ALSA card
+exists; no USB audio device is enumerated).
+
+### The boot race
+
+Independently of the format, the card sometimes fails to be created at boot:
 
 ```text
-qcom-q6afe aprsvc:service:4:4: umi-instr-afe:
-    clk_id=0x104 freq=1536000 enable=1 ret=0
+sound  snd-sm8250: MultiMedia1: error getting cpu dai name
+umi-audio: no sm8250 card; giving up
 ```
 
-`afe_apr_send_pkt()` really waits for the response and reads `result->status`,
-so `ret=0` means the DSP answered `status=0`. The DSP acknowledges the clock
-command and the amps still never see valid frames.
-
-`TST_FS_MON0` reading a different value during playback (`0x00054034` vs the
-`0x00020016` the driver writes) is **not** proof that a bit clock reaches the
-amp either: it is a configuration register whose live field changes.
-
-`cs35l41-ignore-pup.py` hides the symptom: it turns the `-ETIMEDOUT` from the
-missing `PUP_DONE` into a warning. The comment it inherited from the reference
-port says the amps "power up and play" regardless; on this unit they do not,
-so the patch currently masks a real failure.
+The ADSP reports `running` before it has registered its APR services, and the
+sound node has no `status` property, so nothing retries the probe. `deploy/umi-audio-init.sh`
+now reloads `snd-soc-sm8250` until `/proc/asound/cards` shows the card.
 
 ### Audio stack: UCM (fixed)
 
@@ -238,99 +252,3 @@ alsa_output.platform-sound.HiFi__Speaker__sink   s24-32le 2ch 48000Hz
 The `api.alsa.use-acp = false` workaround in `deploy/wireplumber-umi-alsa.conf`
 is therefore obsolete: rename that file to `.disabled` (or drop it) once the
 UCM is installed.
-
-### The DSP acknowledges the clock command
-
-Instrumented `sm8250_snd_startup()` and `q6afe_port_set_sysclk()` on the device
-(18 Nov 2026, kernel `6.12.94-umi #6`, modules rebuilt and loaded):
-
-```text
-q6afe-dai ...: umi-instr: set_sysclk -> 0
-q6afe-dai ...: umi-instr: set_fmt -> 0
-qcom-q6afe aprsvc:service:4:4: umi-instr-afe:
-    clk_id=0x104 freq=1536000 enable=1 ret=0
-```
-
-- `clk_id = 0x104` is `Q6AFE_LPASS_CLK_ID_TER_MI2S_IBIT` — the right clock.
-- `freq = 1536000` is `MI2S_BCLK_RATE` — 48 kHz × 32 bit.
-- `enable = 1`, and `q6afe_set_lpass_clock_v2()` returns 0.
-
-So the kernel builds the correct AFE clock command **and the DSP accepts it**.
-`afe_apr_send_pkt()` waits for the response and inspects `result->status`, so
-`ret=0` means the DSP answered `status=0` — it is not a silently ignored call.
-
-The `clk_summary` `en=0` shown above is a red herring: this path never touches
-the Linux clock framework.
-
-## Everything tried, and what it ruled out
-
-| attempt | result |
-|---|---|
-| Speaker widget routes (`"RCV Speaker", "RCV SPK"`) | **real bug, fixed**: without them the widgets stayed `Off in 0` |
-| UCM installed under the driver name, `Syntax 6` | **real bug, fixed**: WirePlumber now builds a 2ch `HiFi__Speaker__sink` instead of an 8ch fallback |
-| `cirrus,asp-sdout-hiz` 3 (stock dtbo) vs 1 (reference port) | **3 breaks the DAPM chain** (`LCV SPK` stays `Off`, `CLASS H` off); 1 is required here |
-| `cirrus,boost-type = <0>` | no effect, reverted |
-| amp at `0x41` (stock dtbo) vs `0x42` | `0x41` does not ACK on I2C; `0x42` returns the Cirrus ID `0x35a40` — **the stock dtbo is for the CSOT variant** |
-| amp volumes from the reference UCM (817 / 4, DRE off) | no effect |
-| sink volume 90 % and 100 % | no effect |
-| `Tertiary TDM Capture` loopback dai-link | no effect |
-| ADSP firmware vs the `modem` partition | **20/20 files byte-identical** |
-| kernel config vs the reference (audio, LPASS, clocks) | **identical option by option** |
-| clean reboots before each test | no effect |
-
-What is left, with everything software-side excluded:
-
-- The reference port targets the **CSOT** panel variant; this unit is **Samsung**
-  (`j2_p2_1_38_0c_0a`). Same SoC, different board — the CS35L41 wiring or the
-  ADSP configuration of the amp blocks may differ.
-- Building the reference port's own kernel (clang, `pkgrel=10`) and playing the
-  same tone here would settle it: if it plays, diff the two binaries; if it does
-  not, the fault is in this unit's hardware or its variant firmware.
-
-The instrumentation used for all of the above is not committed: both kernel
-files were restored and the rebuilt `snd-soc-sm8250.ko` is byte-identical to the
-original (`md5 17bed4f01093c60c8994746bc9783c57`).
-
-## What a web search added (18 Nov 2026)
-
-Searched lore.kernel.org, GitHub, the pmaports/nura project, linmob, XDA and
-Reddit for this symptom on SM8250 phones:
-
-- **Nobody has published a solution.** `lore` has only three `cs35l41 PUP_DONE`
-  hits in total, all for the **HDA** (laptop) driver on ASUS machines, which is
-  a different code path from the ASoC one used here.
-- The nura port exposes no GitLab project and documents no audio caveat beyond
-  "it works" for its CSOT unit.
-- Consequence: the "power up and play anyway" justification in
-  `patches/cs35l41-ignore-pup.py` has **no public field report behind it**.
-
-Three of my earlier suspects were re-checked and are now closed:
-
-| suspect | verdict |
-|---|---|
-| `0x742c` staying 0 | **not a fault.** With `boost-type` absent the driver takes `CS35L41_INT_BOOST`, and that branch never writes `0x742c`: it only sets `GLOBAL_EN`, polls, and returns. `0x742c` is reached only on the `EXT_BOOST` path, *after* PUP_DONE, inside the test-key window |
-| OTP / calibration missing | not a gate. `cs35l41_otp_unpack()` runs at probe; a bad OTP ID would log `OTP Map matching ID %d not found`, which never appears |
-| DSP `.wmfw` firmware | not required here. It only selects *which* mechanism enables the speaker stage, and only for `EXT_BOOST` |
-
-The stock `cirrus,boost-*` values were also verified against this unit's own
-`dtbo`: peak 4000 mA, inductor 1000 nH, capacitor 15 uF — our DTS is correct.
-
-### The remaining concrete lead
-
-`GPIO1_CTRL1` (`0x11008`) reads `0x00000000` at all times, including during a
-stream, while `GPIO_PAD_CONTROL` (`0x242c`) shows only GPIO2 configured
-(`cirrus,gpio2-src-select = <4>`). The `EXT_BOOST` path writes
-`GPIO1_CTRL1 = 0x1` to close the **VSPK** switch that feeds the speaker stage;
-with `INT_BOOST` that never happens.
-
-If this Samsung unit expects an external boost with a VSPK switch on GPIO1 (as
-several SM8250 boards do), then `INT_BOOST` leaves the output stage unpowered
-and a missing PUP_DONE is the *correct* hardware answer rather than a firmware
-quirk. The experiment that would settle it:
-
-```dts
-cirrus,boost-type = <1>;        /* CS35L41_EXT_BOOST */
-```
-
-on both amps, then play a tone. This is untested: it changes boost topology and
-is worth doing deliberately rather than by accident.
