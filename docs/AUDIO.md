@@ -2,12 +2,13 @@
 # Audio on the Mi 10 (`umi`)
 
 Status: **playback does not work: no audio reaches the speakers.** The card
-binds, both CS35L41 amps bind on I2C and the ADSP runs, but the playback I2S
-bit clock is never enabled, so the amps never finish power-up. See
-[Not working: playback has no I2S clock](#not-working-playback-has-no-i2s-clock)
-at the end of this file for the measurements. The pieces below are what the
-hardware needs, read out of *this* unit's silicon and stock `dtbo`, not copied
-from another board.
+binds, both CS35L41 amps bind on I2C, the ADSP runs, the whole DAPM chain powers
+up during a stream, and the DSP acknowledges the MI2S clock command — yet the
+amps never raise `PUP_DONE` and never enable their output stage (`0x742c`), so
+nothing comes out. Everything tried and measured is recorded in
+[Not working: playback has no valid frames](#not-working-playback-has-no-valid-frames)
+at the end of this file. The pieces below are what the hardware needs, read out
+of *this* unit's silicon and stock `dtbo`, not copied from another board.
 
 ## Topology
 
@@ -141,12 +142,13 @@ If the card does not appear:
 
 ## Known gaps
 
+- **Playback produces no sound at all** — see the section below.
 - USB-C analogue headsets (WCD938x path) untested.
 - Earpiece-only routing for calls depends on the modem, which is not ported.
 - The receiver is driven as a normal speaker channel; call audio would need the
   voice call dai links.
 
-## Not working: playback has no I2S clock
+## Not working: playback has no valid frames
 
 Measured on 18 Nov 2026, kernel `6.12.94-umi #6`, while a 440 Hz tone ran
 through PipeWire (PCM state `RUNNING`, `hw_ptr` advancing at 48000 frame/s).
@@ -185,16 +187,27 @@ $ grep TER_MI2S /sys/kernel/debug/clk/clk_summary      # during playback
  LPASS_CLK_ID_TER_MI2S_IBIT    en=0
 ```
 
-The playback bit clock is **never enabled**, while the capture side is
-(`LPASS_CLK_ID_TX_CORE_MCLK en=4`). The DSP consumes the buffer, so the PCM
-never reports an underrun, but the amps see a stopped bus: no valid data, no
-`PUP_DONE`, no output.
+**This row is a red herring, not the root cause.** `q6afe_mi2s_set_sysclk()`
+does not go through the Linux clock framework at all: it sends an AFE command
+to the DSP (`q6afe_port_set_sysclk()` -> `q6afe_set_lpass_clock_v2()`). The
+`clk_summary` entries come from the separate `q6afe_clocks` provider and are
+not on the playback path — `q6afe_clocks` is loaded (13 references) and the
+`deviceless` consumer is normal.
 
-`sm8250_snd_startup()` should set that clock via
-`snd_soc_dai_set_sysclk(cpu_dai, Q6AFE_LPASS_CLK_ID_TER_MI2S_IBIT, ...)`
-(patch `patches/sm8250-dual-cs35l41.py` adds the call). It logs a warning only
-when the call *fails*, and no warning appears — so the call returns success
-while the clock stays gated. That is where to look next.
+The command itself is correct; instrumenting `q6afe_port_set_sysclk()` showed
+
+```text
+qcom-q6afe aprsvc:service:4:4: umi-instr-afe:
+    clk_id=0x104 freq=1536000 enable=1 ret=0
+```
+
+`afe_apr_send_pkt()` really waits for the response and reads `result->status`,
+so `ret=0` means the DSP answered `status=0`. The DSP acknowledges the clock
+command and the amps still never see valid frames.
+
+`TST_FS_MON0` reading a different value during playback (`0x00054034` vs the
+`0x00020016` the driver writes) is **not** proof that a bit clock reaches the
+amp either: it is a configuration register whose live field changes.
 
 `cs35l41-ignore-pup.py` hides the symptom: it turns the `-ETIMEDOUT` from the
 missing `PUP_DONE` into a warning. The comment it inherited from the reference
@@ -226,7 +239,7 @@ The `api.alsa.use-acp = false` workaround in `deploy/wireplumber-umi-alsa.conf`
 is therefore obsolete: rename that file to `.disabled` (or drop it) once the
 UCM is installed.
 
-### The ADSP acknowledges the clock and never enables it
+### The DSP acknowledges the clock command
 
 Instrumented `sm8250_snd_startup()` and `q6afe_port_set_sysclk()` on the device
 (18 Nov 2026, kernel `6.12.94-umi #6`, modules rebuilt and loaded):
@@ -242,28 +255,38 @@ qcom-q6afe aprsvc:service:4:4: umi-instr-afe:
 - `freq = 1536000` is `MI2S_BCLK_RATE` — 48 kHz × 32 bit.
 - `enable = 1`, and `q6afe_set_lpass_clock_v2()` returns 0.
 
-So the kernel builds the correct AFE clock command, the DSP acknowledges it
-with success, and `LPASS_CLK_ID_TER_MI2S_IBIT` still reads `en=0` in
-`clk_summary` afterwards.
+So the kernel builds the correct AFE clock command **and the DSP accepts it**.
+`afe_apr_send_pkt()` waits for the response and inspects `result->status`, so
+`ret=0` means the DSP answered `status=0` — it is not a silently ignored call.
 
-Everything below the AFE command is firmware behaviour, and it lies: the clock
-never turns on, the amps never see valid I2S frames, `PUP_DONE` never arrives
-and the output stage (`0x742c`) is never enabled.
+The `clk_summary` `en=0` shown above is a red herring: this path never touches
+the Linux clock framework.
 
-Next steps, none of which are DTS changes:
+## Everything tried, and what it ruled out
 
-1. The ADSP image comes from the phone's own `modem` partition
-   (`qcom/sm8250/xiaomi/umi/adsp.mdt`, copied by
-   `deploy/install-audio-firmware.sh`). Compare it against the reference port,
-   which loads `adsp.mdt` through `msm-firmware-loader` directly from the
-   partition: a stale or mismatched `adsp.b*` split would explain an AFE that
-   accepts clock commands and ignores them.
-2. Try the reference port's own kernel on this unit; if the same tone plays
-   there, the difference is our firmware, not our code.
-3. Decode what the AFE actually reports for the TERTIARY MI2S port
-   (`q6afe_port_start()` path, `AFE_PORT_CMD_DEVICE_START` response), which the
-   current driver discards.
+| attempt | result |
+|---|---|
+| Speaker widget routes (`"RCV Speaker", "RCV SPK"`) | **real bug, fixed**: without them the widgets stayed `Off in 0` |
+| UCM installed under the driver name, `Syntax 6` | **real bug, fixed**: WirePlumber now builds a 2ch `HiFi__Speaker__sink` instead of an 8ch fallback |
+| `cirrus,asp-sdout-hiz` 3 (stock dtbo) vs 1 (reference port) | **3 breaks the DAPM chain** (`LCV SPK` stays `Off`, `CLASS H` off); 1 is required here |
+| `cirrus,boost-type = <0>` | no effect, reverted |
+| amp at `0x41` (stock dtbo) vs `0x42` | `0x41` does not ACK on I2C; `0x42` returns the Cirrus ID `0x35a40` — **the stock dtbo is for the CSOT variant** |
+| amp volumes from the reference UCM (817 / 4, DRE off) | no effect |
+| sink volume 90 % and 100 % | no effect |
+| `Tertiary TDM Capture` loopback dai-link | no effect |
+| ADSP firmware vs the `modem` partition | **20/20 files byte-identical** |
+| kernel config vs the reference (audio, LPASS, clocks) | **identical option by option** |
+| clean reboots before each test | no effect |
 
-The instrumentation used here is not committed: both files were restored and
-the rebuilt `snd-soc-sm8250.ko` is byte-identical to the original
-(`md5 17bed4f01093c60c8994746bc9783c57`).
+What is left, with everything software-side excluded:
+
+- The reference port targets the **CSOT** panel variant; this unit is **Samsung**
+  (`j2_p2_1_38_0c_0a`). Same SoC, different board — the CS35L41 wiring or the
+  ADSP configuration of the amp blocks may differ.
+- Building the reference port's own kernel (clang, `pkgrel=10`) and playing the
+  same tone here would settle it: if it plays, diff the two binaries; if it does
+  not, the fault is in this unit's hardware or its variant firmware.
+
+The instrumentation used for all of the above is not committed: both kernel
+files were restored and the rebuilt `snd-soc-sm8250.ko` is byte-identical to the
+original (`md5 17bed4f01093c60c8994746bc9783c57`).
