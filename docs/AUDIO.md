@@ -290,3 +290,47 @@ What is left, with everything software-side excluded:
 The instrumentation used for all of the above is not committed: both kernel
 files were restored and the rebuilt `snd-soc-sm8250.ko` is byte-identical to the
 original (`md5 17bed4f01093c60c8994746bc9783c57`).
+
+## What a web search added (18 Nov 2026)
+
+Searched lore.kernel.org, GitHub, the pmaports/nura project, linmob, XDA and
+Reddit for this symptom on SM8250 phones:
+
+- **Nobody has published a solution.** `lore` has only three `cs35l41 PUP_DONE`
+  hits in total, all for the **HDA** (laptop) driver on ASUS machines, which is
+  a different code path from the ASoC one used here.
+- The nura port exposes no GitLab project and documents no audio caveat beyond
+  "it works" for its CSOT unit.
+- Consequence: the "power up and play anyway" justification in
+  `patches/cs35l41-ignore-pup.py` has **no public field report behind it**.
+
+Three of my earlier suspects were re-checked and are now closed:
+
+| suspect | verdict |
+|---|---|
+| `0x742c` staying 0 | **not a fault.** With `boost-type` absent the driver takes `CS35L41_INT_BOOST`, and that branch never writes `0x742c`: it only sets `GLOBAL_EN`, polls, and returns. `0x742c` is reached only on the `EXT_BOOST` path, *after* PUP_DONE, inside the test-key window |
+| OTP / calibration missing | not a gate. `cs35l41_otp_unpack()` runs at probe; a bad OTP ID would log `OTP Map matching ID %d not found`, which never appears |
+| DSP `.wmfw` firmware | not required here. It only selects *which* mechanism enables the speaker stage, and only for `EXT_BOOST` |
+
+The stock `cirrus,boost-*` values were also verified against this unit's own
+`dtbo`: peak 4000 mA, inductor 1000 nH, capacitor 15 uF — our DTS is correct.
+
+### The remaining concrete lead
+
+`GPIO1_CTRL1` (`0x11008`) reads `0x00000000` at all times, including during a
+stream, while `GPIO_PAD_CONTROL` (`0x242c`) shows only GPIO2 configured
+(`cirrus,gpio2-src-select = <4>`). The `EXT_BOOST` path writes
+`GPIO1_CTRL1 = 0x1` to close the **VSPK** switch that feeds the speaker stage;
+with `INT_BOOST` that never happens.
+
+If this Samsung unit expects an external boost with a VSPK switch on GPIO1 (as
+several SM8250 boards do), then `INT_BOOST` leaves the output stage unpowered
+and a missing PUP_DONE is the *correct* hardware answer rather than a firmware
+quirk. The experiment that would settle it:
+
+```dts
+cirrus,boost-type = <1>;        /* CS35L41_EXT_BOOST */
+```
+
+on both amps, then play a tone. This is untested: it changes boost topology and
+is worth doing deliberately rather than by accident.
