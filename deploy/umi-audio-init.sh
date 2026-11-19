@@ -16,8 +16,8 @@
 set -u
 
 CARD=${CARD:-0}
-DIGITAL_PCT=${DIGITAL_PCT:-42}
-ANALOG_PCT=${ANALOG_PCT:-60}
+DIGITAL_PCT=${DIGITAL_PCT:-100}
+ANALOG_PCT=${ANALOG_PCT:-100}
 
 log() { echo "umi-audio: $*" >&2; }
 

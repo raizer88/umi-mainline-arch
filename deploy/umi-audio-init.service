@@ -6,8 +6,8 @@ ConditionPathExists=/proc/asound/cards
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-Environment=DIGITAL_PCT=42
-Environment=ANALOG_PCT=60
+Environment=DIGITAL_PCT=100
+Environment=ANALOG_PCT=100
 ExecStart=/usr/local/sbin/umi-audio-init
 StandardOutput=journal
 StandardError=journal

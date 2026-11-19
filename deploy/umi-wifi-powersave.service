@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: CC0-1.0
+[Unit]
+Description=Disable WiFi power save on umi (QCA6390)
+
+[Service]
+Type=oneshot
+# Without this the card drops beacons under idle and the link dies. It cannot
+# run at boot because wlan0 does not exist yet, hence the timer.
+ExecStart=/usr/bin/iw dev wlan0 set power_save off
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

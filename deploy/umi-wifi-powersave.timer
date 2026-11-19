@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: CC0-1.0
+[Unit]
+Description=Disable WiFi power save 120 seconds after boot on umi
+
+[Timer]
+# Same reasoning as umi-wpa-late.timer: wlan0/ath11k probes around 40 s, and the
+# WiFi association itself is driven by umi-wpa-late.timer at 90 s. 120 s means
+# the interface exists and the link is up.
+OnBootSec=120s
+Unit=umi-wifi-powersave.service
+
+[Install]
+WantedBy=timers.target

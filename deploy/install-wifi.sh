@@ -79,6 +79,8 @@ chmod 600 /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
 
 install -m 644 "$SELF/umi-wpa-late.service" /etc/systemd/system/umi-wpa-late.service
 install -m 644 "$SELF/umi-wpa-late.timer"   /etc/systemd/system/umi-wpa-late.timer
+install -m 644 "$SELF/umi-wifi-powersave.service" /etc/systemd/system/umi-wifi-powersave.service
+install -m 644 "$SELF/umi-wifi-powersave.timer"   /etc/systemd/system/umi-wifi-powersave.timer
 systemctl daemon-reload
 
 # Early WiFi startup is the trigger; keep these off.
@@ -86,6 +88,7 @@ systemctl disable --now wpa_supplicant@wlan0 2>/dev/null || true
 systemctl disable --now dhcpcd@wlan0 2>/dev/null || true
 systemctl mask iwd 2>/dev/null || true
 systemctl enable --now umi-wpa-late.timer
+systemctl enable --now umi-wifi-powersave.timer
 
 echo "installed."
 echo "config: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf (0600)"
