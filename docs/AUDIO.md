@@ -1,19 +1,35 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 # Audio on the Mi 10 (`umi`)
 
-Status: **works, but only with S16_LE and no MMAP.** Playback is audible when
-the ALSA device is opened the way `speaker-test` opens it — `RW_INTERLEAVED`,
-`S16_LE`, 48 kHz. PipeWire's defaults for this card (`S24_LE`,
-`MMAP_INTERLEAVED`) produce a PCM that reports `RUNNING`, advances `hw_ptr` at
-48 kHz, powers up the whole ASoC DAPM chain and is completely silent.
+Status: **works — clean and loud, with PulseAudio.** PipeWire produces a
+permanent crackle on this board that no configuration could remove; PulseAudio
+plays the same files clean, which is also what the reference port
+(`miercolesvd/nura-mi10-umi-port`) uses. See
+[Why PulseAudio, not PipeWire](#why-pulseaudio-not-pipewire) below for the full
+comparison and the leads that cost most of the investigation.
 
-The fix is `deploy/wireplumber-umi-alsa-format.conf`, installed as
-`~/.config/wireplumber/wireplumber.conf.d/52-umi-alsa-periods.conf`; verified
-audible on the device. See [Why PipeWire was silent](#why-pipewire-was-silent)
-at the end of this file, including the misleading leads that cost most of the
-investigation.
+Deployment, all verified on the device and surviving a reboot:
+
+| piece | where |
+|---|---|
+| `pulseaudio` + `pulseaudio-alsa` installed, `pipewire-audio` removed | system packages |
+| `pulseaudio.service` / `.socket` enabled per user | `~/.config/systemd/user/` |
+| sink default + volume 100 % | `deploy/pulse/99-umi.conf` |
+| amp levels at maximum (913/913 digital, 20/20 analog) | `deploy/ucm2/Xiaomi/umi/HiFi.conf` |
+| ALSA `default` points at PulseAudio | `/etc/alsa/conf.d/99-pulseaudio-default.conf` |
+
+`pipewire`, `wireplumber` and `libpipewire` stay **installed but stopped**:
+`kwin` and `xdg-desktop-portal` require them as dependencies, so removing them
+would break the Plasma session. `pipewire-audio` (the part that creates audio
+nodes) is removed, and no PipeWire process runs.
+
+The amp volume levels live in the **UCM**, not in a service: PulseAudio applies
+them every time it opens the card, which is why raising them with `amixer` did
+not survive a restart. The reference port ships 817/4 (conservative, CSOT
+panel); this unit wants 913/20.
 
 There is also a boot race, unrelated to the format: the ADSP reports `running`
+, unrelated to the format: the ADSP reports `running`
 before its APR services exist, so the card probe can fail with
 `snd-sm8250: MultiMedia1: error getting cpu dai name` and no card is created at
 all. `deploy/umi-audio-init.sh` retries the machine driver until the card
@@ -140,7 +156,7 @@ dmesg | grep -iE 'adsp|PDM|apr|cs35l41|sm8250-sndcard'
 #         cs35l41 ... probe
 aplay -l                 # the card should be listed
 speaker-test -c2 -t wav  # audible: RW_INTERLEAVED + S16_LE
-pw-play /path/to.wav     # audible only with deploy/wireplumber-umi-alsa-format.conf
+paplay /path/to.wav      # the working path (PulseAudio)
 ```
 
 If the card does not appear:
@@ -162,37 +178,38 @@ If the card does not appear:
 - The receiver is driven as a normal speaker channel; call audio would need the
   voice call dai links.
 
-## Why PipeWire was silent
+## Why PulseAudio, not PipeWire
 
-Measured on 18 Nov 2026, kernel `6.12.94-umi #6`, playing a 440 Hz tone and
-reading `/proc/asound/card0/pcm0p/sub0/hw_params` on each path:
+Playback was measured on the device with the same files on both stacks
+(18-19 Nov 2026, kernel `6.12.94-umi #6`):
 
-| path | access | format | period | buffer | audible |
-|---|---|---|---|---|---|
-| `speaker-test -D hw:0,0` | `RW_INTERLEAVED` | `S16_LE` | 12000 | 48000 | **yes** |
-| PipeWire, defaults | `MMAP_INTERLEAVED` | `S24_LE` | 480 | 3840 | no |
-| PipeWire, S16 + no MMAP | `RW_INTERLEAVED` | `S16_LE` | 480 | 1920 | **yes** |
+| path | result |
+|---|---|
+| `aplay -D hw:0,0` (direct ALSA) | **clean** |
+| PipeWire, defaults | silent |
+| PipeWire, `S16LE` + `disable-mmap` | audible but **crackles permanently** |
+| **PulseAudio** | **clean and loud** |
 
-Both audible runs were confirmed by ear on the phone, and the middle one
-reproduced the failure every time.
+Getting PipeWire to produce any sound at all required `S16_LE` without MMAP
+(its defaults, `S24_LE` + `MMAP_INTERLEAVED`, give a PCM that reports `RUNNING`,
+advances `hw_ptr` at 48000 frame/s, powers the whole DAPM chain and emits
+nothing; `sw_params` shows `start_threshold = S64_MAX` on that path).
 
-So the backend accepts `S24_LE` + MMAP, runs the PCM at exactly 48000 frame/s,
-and delivers nothing. It only works in read/write mode with 16-bit samples.
+That still crackled. Tried on PipeWire, none of which removed it:
 
-`sw_params` showed the same split: with MMAP PipeWire sets
-`start_threshold = S64_MAX` (start delegated to the MMAP path, which this
-backend never completes); `speaker-test` uses `start_threshold = buffer_size`.
+- `api.alsa.period-size` from 480 to 12000 and `api.alsa.period-num` 4
+- `default.clock.quantum` 8192 and `clock.force-quantum` 960
+- `resample.quality = 14` and `default.clock.allowed-rates = [ 48000 ]`
+- `PCM Soft Ramp` 30 ms on both amps, `dapm_pop_time` 500 ms
+- volumes from 40 % to 100 %, analog gain 4 to 20
+- UCM active vs the native ALSA path
 
-The configuration that fixes it:
+PulseAudio played clean with no audio-specific tuning beyond `S16_LE` handling,
+and it is what the reference port uses. `pipewire-audio` was therefore removed.
 
-```text
-api.alsa.disable-mmap = true
-audio.format          = "S16LE"
-audio.rate            = 48000
-audio.channels        = 2
-api.alsa.period-size  = 12000
-api.alsa.period-num   = 4
-```
+A useful diagnostic that came out of this: `aplay` accepts large periods
+(`--period-size=12000 --buffer-size=48000` was negotiated verbatim), so the
+480-frame period is *PipeWire's choice*, not a driver limit.
 
 ### Leads that cost time, and what they actually showed
 
@@ -242,13 +259,26 @@ must be installed under the **driver** name, with `Syntax 6`:
 alsaucm -c sm8250 list _verbs      # 0: HiFi   Default
 ```
 
-With it, WirePlumber builds a real sink instead of the broken fallback
-(`audio.channels = 64` before):
+With it, PulseAudio builds a real sink instead of a null fallback:
 
 ```text
-alsa_output.platform-sound.HiFi__Speaker__sink   s24-32le 2ch 48000Hz
+alsa_output.platform-sound.HiFi__Speaker__sink   s16le 2ch 44100Hz
 ```
 
-The `api.alsa.use-acp = false` workaround in `deploy/wireplumber-umi-alsa.conf`
-is therefore obsolete: rename that file to `.disabled` (or drop it) once the
-UCM is installed.
+The amp levels come from the UCM's `Speaker` section and PulseAudio applies
+them **every time it opens the card**. That is why `amixer cset` does not
+survive a restart. The reference port ships `817` (digital) and `4` (analog),
+chosen to keep a CSOT unit cool; this Samsung unit runs at the chip maximum
+`913` / `20` without distortion:
+
+```text
+cset "name='LCV Analog PCM Volume' 20"
+cset "name='RCV Analog PCM Volume' 20"
+cset "name='LCV Digital PCM Volume' 913"
+cset "name='RCV Digital PCM Volume' 913"
+```
+
+If audio comes back silent after a package upgrade, check in this order:
+`pactl get-default-sink` (must not be `auto_null`), then the amp levels, then
+`cat /proc/asound/card0/pcm0p/sub0/hw_params` while playing (expect
+`RW_INTERLEAVED` + `S16_LE`).
